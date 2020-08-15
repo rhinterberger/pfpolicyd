@@ -1,48 +1,65 @@
-use std::thread;
-use std::net::{TcpListener};
+use std::{thread};
+use std::net::{TcpListener, TcpStream};
 use std::thread::{JoinHandle};
 use std::time::Duration;
 
 use mysql;
+use mysql::Pool;
+use structopt::StructOpt;
 
+mod opt;
 mod postfix_client;
 mod pf_database;
-use crate::pf_database::PfDatabase;
-use mysql::Pool;
 
 fn main() {
-
     let mut threads:Vec<JoinHandle<_>> = Vec::new();
 
-    let db_connection_url = "mysql://root:password@localhost:3307/db_name";
-    let db_pool = Pool::new(db_connection_url);
+    let params = opt::Opt::from_args();
+    let timeout = params.timeout;
+    let noaction = params.noaction;
 
-    let server = TcpListener::bind("127.0.0.1:1234")
-        .expect("Bind failed");
+    let db_pool = Pool::new(params.dburl)
+        .expect("Database Connection failed");
+
+    let server = TcpListener::bind(params.listen)
+        .expect("Bind to IP:Port failed");
 
     for client in server.incoming() {
         match client {
-            Ok(client_stream) => {
-                client_stream.set_read_timeout(Some(Duration::new(10, 0)))
-                    .expect("Failed SetReadTimeout");
+            Ok(mut client_stream) => {
+                let db_connection = db_pool.clone();
+                let new_thread= prepare_thread(&mut client_stream, timeout)
+                    .spawn(move || postfix_client::client_handler(client_stream,  db_connection, noaction));
 
-                threads.push(thread::Builder::new()
-                    .name(client_stream
-                        .peer_addr()
-                        .unwrap()
-                        .to_string()
-                    )
-                    .spawn(move || postfix_client::client_handler(client_stream, PfDatabase {}))
-                    .unwrap()
-                );
+                match new_thread {
+                    Ok(handle) => {
+                        threads.push(handle);
+                    }
+                    Err(error) => {
+                        eprintln!("Start Thread Failed {}", error);
+                    }
+                }
             }
-            Err(e) => {
-                println!("Client Stream Failed {}", e);
+            Err(error) => {
+                eprintln!("Client Stream Failed {}", error);
             }
         }
     }
 
     for thread in threads {
-        thread.join().expect("Join Thread Failed");
+        thread.join()
+            .expect("Join Thread Failed");
     }
+}
+
+fn prepare_thread(client: &mut TcpStream, timeout: u64) -> thread::Builder {
+    client.set_read_timeout(Some(Duration::new(timeout, 0)))
+        .expect("Failed SetReadTimeout");
+
+    let client_address = client
+        .peer_addr()
+        .unwrap()
+        .to_string();
+
+    thread::Builder::new().name(client_address)
 }

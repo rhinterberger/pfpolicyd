@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 mysql = "*"
+structopt = "0.3"
