@@ -70,7 +70,10 @@ impl PfPolicyClient {
         eprintln!("{:?}", request);
         match database.check_quota_exceeded(request.get("sasl_username").unwrap()) {
             None => { database.increment_quota(request.get("sasl_username").unwrap()); }
-            Some(period) => { return format!("action=defer_if_permit Service temporarily unavailable - {} send quota exceeded\n\n", period); }
+            Some(period) => {
+                database.increment_quota(request.get("sasl_username").unwrap());
+                return format!("action=defer_if_permit Service temporarily unavailable - {} send quota exceeded\n\n", period);
+            }
         }
         String::from("action=defer_if_reject\n\n")
     }
