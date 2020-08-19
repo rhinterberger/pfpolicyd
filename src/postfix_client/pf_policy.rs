@@ -25,10 +25,13 @@ impl PfPolicyClient {
                     if noaction {
                         response=String::from("action=defer_if_reject\n\n");
                     }
+
                     client
                         .get_mut()
                         .write(response.as_bytes())
                         .expect("Write Failed");
+
+                    request.clear();
                 },
                 Err(error) => {
                     eprintln!("{} : Connection closed: {}", client_stream.peer_addr().unwrap(), error);
@@ -51,6 +54,7 @@ impl PfPolicyClient {
         Ok(line_key_value.clone())
     }
 
+    // Todo: Add Validation
     fn get_key_value(self, line: String) -> Result<Option<Vec<String>>, &'static str> {
         let split_line: Vec<String> = line
             .split('=')
