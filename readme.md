@@ -1,3 +1,5 @@
+![Rust](https://github.com/rhinterberger/pfpolicyd/workflows/Rust/badge.svg?branch=master)
+
 # pfpolicyd - Simple Postfix policy daemon
 
 ## Features 
